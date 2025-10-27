@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GM Plant Simulation</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    cursor: none;
+  }
+
+  * {
+    cursor: none !important;
+  }
+
+  /* Custom Cursor */
+  .cursor {
+    position: fixed;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(76, 175, 80, 0.25), rgba(46, 125, 50, 0.08));
+    backdrop-filter: blur(8px);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: width 0.2s ease, height 0.2s ease, background 0.2s ease;
+    box-shadow: 0 0 20px rgba(76, 175, 80, 0.2);
+  }
+
+  .cursor::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 6px;
+    height: 6px;
+    background: rgba(46, 125, 50, 0.8);
+    border-radius: 50%;
+  }
+
+  .cursor.hover {
+    width: 60px;
+    height: 60px;
+    background: radial-gradient(circle, rgba(76, 175, 80, 0.4), rgba(46, 125, 50, 0.15));
+    box-shadow: 0 0 30px rgba(76, 175, 80, 0.4);
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-15px); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -1000px 0; }
+    100% { background-position: 1000px 0; }
+  }
+
+  @keyframes rotateRay {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes wilt {
+    0% { transform: rotate(25deg); opacity: 1; filter: brightness(1); }
+    100% { transform: rotate(70deg); opacity: 0.4; filter: brightness(0.6); }
+  }
+
+  @keyframes fall {
+    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(200px) rotate(180deg); opacity: 0; }
+  }
+
+  .page {
+    position: absolute;
+    width: 100%;
+    height: 100vh;
+    top: 0; left: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1), 
+                transform 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .hidden { 
+    opacity: 0; 
+    transform: translateX(-100%) scale(0.95); 
+    pointer-events: none; 
+  }
+  
+  .visible { 
+    opacity: 1; 
+    transform: translateX(0) scale(1); 
+  }
+
+  /* 🌤 Enhanced Sky with Gradient Mesh */
+  .sky {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+    transition: background 2.5s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: -4;
+    overflow: hidden;
+  }
+
+  /* Animated gradient orbs in background */
+  .gradient-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.4;
+    animation: floatOrb 20s ease-in-out infinite;
+  }
+
+  @keyframes floatOrb {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(30px, -50px) scale(1.1); }
+    66% { transform: translate(-30px, 30px) scale(0.9); }
+  }
+
+  /* Floating particles in background */
+  .particle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.2));
+    border-radius: 50%;
+    animation: floatingParticles 8s ease-in-out infinite;
+    opacity: 0.7;
+    filter: blur(1px);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  }
+
+  .star {
+    position: absolute;
+    width: 3px;
+    height: 3px;
+    background: white;
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+    animation: twinkle 3s ease-in-out infinite;
+  }
+
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+
+  .cloud {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 100px;
+    animation: drift 60s linear infinite;
+    backdrop-filter: blur(5px);
+    box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.2);
+  }
+
+  @keyframes drift {
+    from { transform: translateX(-100px); }
+    to { transform: translateX(calc(100vw + 100px)); }
+  }
+
+  @keyframes floatingParticles {
+    0%, 100% { transform: translateY(0) translateX(0); }
+    25% { transform: translateY(-20px) translateX(10px); }
+    50% { transform: translateY(-40px) translateX(-10px); }
+    75% { transform: translateY(-20px) translateX(10px); }
+  }
+
+  .overlay {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 50% 50%, transparent 0%, rgba(0, 0, 0, 0.1) 100%);
+    z-index: -2;
+  }
+
+  .sun {
+    position: absolute;
+    top: 20%;
+    left: 10%;
+    width: clamp(80px, 15vw, 140px);
+    height: clamp(80px, 15vw, 140px);
+    background: radial-gradient(circle at 30% 30%, #fffae3, #ffdb58, #ffb347);
+    border-radius: 50%;
+    box-shadow: 0 0 100px 30px rgba(255, 240, 122, 0.6),
+                0 0 200px 60px rgba(255, 200, 100, 0.3),
+                inset -10px -10px 30px rgba(255, 180, 0, 0.3);
+    transition: all 2.5s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: pulse 4s ease-in-out infinite;
+    z-index: -1;
+  }
+
+  .sun::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.4), transparent);
+    animation: pulse 3s ease-in-out infinite alternate;
+  }
+
+  /* Translucent sun filter overlay */
+  .sun-filter {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+    transition: opacity 0.8s ease;
+  }
+
+  .sun-ray {
+    position: absolute;
+    width: 2px;
+    height: 120%;
+    background: linear-gradient(to bottom, 
+      transparent, 
+      rgba(255, 240, 150, 0.2), 
+      transparent);
+    transform-origin: top center;
+    animation: rotateRay 20s linear infinite;
+  }
+
+  /* 🌿 Plants - Responsive */
+  .plants {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: clamp(60px, 15vw, 140px);
+    height: auto;
+    z-index: 2;
+    margin-top: 20px;
+    margin-bottom: clamp(60px, 10vh, 80px);
+    flex-wrap: wrap;
+  }
+
+  .plant-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .plant-label {
+    position: absolute;
+    bottom: -45px;
+    font-size: clamp(12px, 2vw, 15px);
+    font-weight: 700;
+    color: rgba(27, 94, 32, 1);
+    background: rgba(255, 255, 255, 0.5);
+    backdrop-filter: blur(15px);
+    padding: clamp(8px, 1.5vw, 10px) clamp(16px, 3vw, 24px);
+    border-radius: 25px;
+    border: 2px solid rgba(76, 175, 80, 0.5);
+    letter-spacing: 0.8px;
+    transition: all 0.4s ease;
+    white-space: nowrap;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15),
+                0 0 40px rgba(76, 175, 80, 0.2);
+    text-transform: uppercase;
+  }
+
+  .plant-label:hover {
+    transform: translateY(8px);
+    box-shadow: 0 8px 30px rgba(76, 175, 80, 0.5);
+    background: rgba(255, 255, 255, 0.6);
+  }
+
+  .pot {
+    width: clamp(120px, 20vw, 160px);
+    height: clamp(65px, 10vw, 85px);
+    background: linear-gradient(135deg, #b85c38, #8b4513, #6b3410);
+    border-radius: 0 0 55px 55px;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3),
+                inset 0 -5px 15px rgba(0, 0, 0, 0.2);
+    overflow: visible;
+    z-index: 4;
+  }
+
+  .pot::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 8px;
+    background: linear-gradient(to right, 
+      transparent, 
+      rgba(255, 255, 255, 0.3), 
+      transparent);
+    animation: shimmer 3s infinite;
+  }
+
+  .plant {
+    position: absolute;
+    bottom: clamp(65px, 10vw, 85px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: all 2.5s cubic-bezier(0.4, 0, 0.2, 1);
+    filter: drop-shadow(0 5px 15px rgba(0, 0, 0, 0.2));
+    z-index: 5;
+    transform-origin: bottom center;
+  }
+
+  .plant:hover {
+    animation: float 2s ease-in-out infinite;
+  }
+
+  .plant > * {
+    position: relative;
+  }
+
+ .stem {
+    width: clamp(10px, 1.5vw, 12px);
+    height: clamp(100px, 15vw, 140px);
+    background: linear-gradient(to right, #2d4a2f, #3a5a40, #2d4a2f);
+    border-radius: 12px;
+    position: relative;
+    bottom: 0;
+    transition: all 2.5s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: inset -2px 0 5px rgba(0, 0, 0, 0.3);
+    transform-origin: bottom center;
+}
+
+  .stem::before {
+    content: '';
+    position: absolute;
+    left: 2px;
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(to bottom, 
+      rgba(255, 255, 255, 0.3), 
+      transparent);
+    border-radius: 10px;
+  }
+
+  .leaf {
+    width: clamp(35px, 5vw, 45px);
+    height: clamp(22px, 3vw, 28px);
+    background: linear-gradient(135deg, #4caf50, #66bb6a, #43a047);
+    border-radius: 50%;
+    position: absolute;
+    transition: all 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2),
+                inset -5px -5px 10px rgba(0, 0, 0, 0.1);
+  }
+  
+  .leaf::after {
+    content: '';
+    position: absolute;
+    width: 2px;
+    height: 70%;
+    background: linear-gradient(to bottom, 
+      rgba(255, 255, 255, 0.4), 
+      transparent);
+    top: 15%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 2px;
+  }
+  
+  .leaf.left { 
+    left: clamp(-32px, -5vw, -38px);
+    transform: rotate(-25deg); 
+    transform-origin: right center;
+  }
+  
+  .leaf.right { 
+    right: clamp(-32px, -5vw, -38px);
+    transform: rotate(25deg); 
+    transform-origin: left center;
+  }
+
+  .leaf:hover {
+    transform: rotate(-25deg) scale(1.1);
+  }
+
+  .leaf.right:hover {
+    transform: rotate(25deg) scale(1.1);
+  }
+
+  /* Beautiful Flower with Petals */
+  .flower {
+    width: clamp(30px, 5vw, 40px);
+    height: clamp(30px, 5vw, 40px);
+    position: absolute;
+    top: clamp(-35px, -5vw, -45px);
+    left: clamp(-6px, -1vw, -8px);
+    opacity: 1;
+    transition: all 1.8s cubic-bezier(0.4, 0, 0.2, 1);
+    filter: drop-shadow(0 3px 8px rgba(233, 30, 99, 0.3));
+  }
+
+  .flower-petal {
+    position: absolute;
+    width: clamp(10px, 1.5vw, 12px);
+    height: clamp(14px, 2vw, 18px);
+    background: linear-gradient(135deg, #ff69b4, #e91e63);
+    border-radius: 50% 50% 50% 0;
+    top: 50%;
+    left: 50%;
+    transform-origin: 0 0;
+    box-shadow: 0 2px 8px rgba(233, 30, 99, 0.4);
+  }
+
+  .flower-center {
+    position: absolute;
+    width: clamp(8px, 1.2vw, 10px);
+    height: clamp(8px, 1.2vw, 10px);
+    background: radial-gradient(circle at 30% 30%, #fff176, #ffd54f);
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 8px rgba(255, 235, 59, 0.6),
+                inset -2px -2px 5px rgba(200, 180, 0, 0.3);
+    z-index: 2;
+  }
+
+  .flower:hover {
+    transform: scale(1.2);
+  }
+
+  /* Falling Leaf & Petal */
+  .falling-leaf, .falling-petal {
+    position: absolute;
+    animation: fall 5s linear infinite;
+    opacity: 0;
+  }
+
+  /* 🌞 Controls - Responsive */
+  .controls {
+    margin-top: 10px;
+    margin-bottom: clamp(15px, 3vh, 20px);
+    text-align: center;
+    z-index: 3;
+    background: rgba(255, 255, 255, 0.35);
+    backdrop-filter: blur(20px);
+    padding: clamp(25px, 4vw, 35px) clamp(30px, 5vw, 50px);
+    border-radius: 25px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15),
+                0 0 60px rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    transition: all 0.4s ease;
+    width: 90%;
+    max-width: 500px;
+  }
+
+  .controls:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.2);
+  }
+
+  input[type=range] {
+    width: 100%;
+    max-width: 380px;
+    height: 8px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: linear-gradient(to right, 
+      #2b3a67 0%, 
+      #87ceeb 50%, 
+      #ff9966 100%);
+    border-radius: 10px;
+    outline: none;
+    box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.2);
+    cursor: default;
+    transition: all 0.3s ease;
+  }
+
+  input[type=range]:hover {
+    transform: scaleY(1.3);
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 26px;
+    height: 26px;
+    background: radial-gradient(circle, #fff176, #ffb347);
+    border-radius: 50%;
+    cursor: default;
+    box-shadow: 0 0 15px rgba(255, 204, 51, 0.6),
+                0 4px 10px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+  }
+
+  input[type=range]::-webkit-slider-thumb:hover {
+    transform: scale(1.3);
+    box-shadow: 0 0 25px rgba(255, 204, 51, 0.8),
+                0 6px 15px rgba(0, 0, 0, 0.4);
+  }
+
+  input[type=range]::-webkit-slider-thumb:active {
+    cursor: default;
+    transform: scale(1.1);
+  }
+
+  input[type=range]::-moz-range-thumb {
+    width: 26px;
+    height: 26px;
+    background: radial-gradient(circle, #fff176, #ffb347);
+    border: none;
+    border-radius: 50%;
+    cursor: default;
+    box-shadow: 0 0 15px rgba(255, 204, 51, 0.6),
+                0 4px 10px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
+  }
+
+  input[type=range]::-moz-range-thumb:hover {
+    transform: scale(1.3);
+  }
+
+  input[type=range]::-moz-range-thumb:active {
+    cursor: default;
+  }
+
+  .sun-value {
+    margin-top: 18px;
+    font-weight: 700;
+    font-size: clamp(16px, 2.5vw, 18px);
+    color: #1b5e20;
+    text-shadow: 0 2px 4px rgba(255, 255, 255, 0.5);
+    letter-spacing: 1px;
+  }
+
+  .desc {
+    margin-top: 22px;
+    width: 100%;
+    text-align: center;
+    color: #1e3a1e;
+    line-height: 1.7;
+    font-size: clamp(13px, 2vw, 15px);
+    font-weight: 500;
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3);
+  }
+
+  /* Arrow Button - Responsive */
+  .arrow {
+    position: absolute;
+    right: clamp(20px, 5vw, 50px);
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 10;
+  }
+
+  .arrow-circle {
+    width: clamp(60px, 10vw, 80px);
+    height: clamp(60px, 10vw, 80px);
+    border-radius: 50%;
+    background: linear-gradient(135deg, 
+      rgba(255, 255, 255, 0.35) 0%,
+      rgba(255, 255, 255, 0.15) 100%);
+    backdrop-filter: blur(20px);
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2),
+                inset 0 2px 4px rgba(255, 255, 255, 0.5),
+                0 0 60px rgba(76, 175, 80, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .arrow-circle::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: linear-gradient(135deg, 
+      rgba(76, 175, 80, 0.2),
+      rgba(46, 125, 50, 0.15));
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  .arrow-inner {
+    font-size: clamp(32px, 5vw, 40px);
+    color: #2e7d32;
+    font-weight: 700;
+    transition: all 0.4s ease;
+    line-height: 1;
+  }
+  
+  .arrow:hover .arrow-circle { 
+    transform: translateX(10px) scale(1.1);
+    background: linear-gradient(135deg, 
+      rgba(76, 175, 80, 0.4) 0%,
+      rgba(46, 125, 50, 0.3) 100%);
+    box-shadow: 0 12px 48px rgba(76, 175, 80, 0.4),
+                inset 0 2px 4px rgba(255, 255, 255, 0.6);
+  }
+
+  .arrow:hover .arrow-circle::before {
+    opacity: 1;
+  }
+
+  .arrow:hover .arrow-inner {
+    color: #1b5e20;
+    transform: scale(1.2);
+  }
+
+  .arrow:active .arrow-circle {
+    transform: translateX(10px) scale(1.05);
+  }
+
+  /* 🌿 Page 2 - Responsive */
+  .desc-container {
+    width: 90%;
+    max-width: 900px;
+    background: rgba(255, 255, 255, 0.35);
+    backdrop-filter: blur(20px);
+    padding: clamp(30px, 5vw, 50px) clamp(40px, 6vw, 60px);
+    border-radius: 30px;
+    color: #1e3a1e;
+    text-align: center;
+    box-shadow: 0 15px 60px rgba(0, 0, 0, 0.2),
+                0 0 80px rgba(255, 255, 255, 0.2);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    margin-bottom: clamp(60px, 10vh, 100px);
+    transition: all 0.4s ease;
+    animation: fadeInUp 1s ease-out;
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(40px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .desc-container:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 20px 80px rgba(0, 0, 0, 0.25);
+  }
+
+  h1 { 
+    color: #1b5e20; 
+    margin-bottom: 20px; 
+    font-size: clamp(24px, 5vw, 36px);
+    font-weight: 700;
+    text-shadow: 0 2px 4px rgba(255, 255, 255, 0.3);
+    animation: slideInLeft 0.8s ease-out 0.2s both;
+  }
+
+  @keyframes slideInLeft {
+    from {
+      opacity: 0;
+      transform: translateX(-50px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  
+  h2 { 
+    color: #33691e; 
+    margin-top: 30px; 
+    font-size: clamp(20px, 3.5vw, 24px);
+    font-weight: 600;
+    animation: slideInRight 0.8s ease-out 0.4s both;
+  }
+
+  @keyframes slideInRight {
+    from {
+      opacity: 0;
+      transform: translateX(50px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  
+  p, li { 
+    margin: 12px 0; 
+    line-height: 1.8; 
+    font-size: clamp(14px, 2.2vw, 16px);
+    animation: fadeIn 1s ease-out 0.6s both;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  h2:hover, h1:hover {
+    transform: scale(1.05);
+    transition: transform 0.3s ease;
+  }
+
+  p:hover {
+    color: #1b5e20;
+    transition: color 0.3s ease;
+  }
+
+  .back-arrow {
+    position: absolute;
+    left: clamp(20px, 5vw, 50px);
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 10;
+  }
+
+  .back-arrow-circle {
+    width: clamp(60px, 10vw, 80px);
+    height: clamp(60px, 10vw, 80px);
+    border-radius: 50%;
+    background: linear-gradient(135deg, 
+      rgba(255, 255, 255, 0.35) 0%,
+      rgba(255, 255, 255, 0.15) 100%);
+    backdrop-filter: blur(20px);
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2),
+                inset 0 2px 4px rgba(255, 255, 255, 0.5),
+                0 0 60px rgba(76, 175, 80, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .back-arrow-circle::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: linear-gradient(135deg, 
+      rgba(76, 175, 80, 0.2),
+      rgba(46, 125, 50, 0.15));
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  .back-arrow-inner {
+    font-size: clamp(32px, 5vw, 40px);
+    color: #2e7d32;
+    font-weight: 700;
+    transition: all 0.4s ease;
+    line-height: 1;
+  }
+
+  .back-arrow:hover .back-arrow-circle {
+    transform: translateX(-10px) scale(1.1);
+    background: linear-gradient(135deg, 
+      rgba(76, 175, 80, 0.4) 0%,
+      rgba(46, 125, 50, 0.3) 100%);
+    box-shadow: 0 12px 48px rgba(76, 175, 80, 0.4),
+                inset 0 2px 4px rgba(255, 255, 255, 0.6);
+  }
+
+  .back-arrow:hover .back-arrow-circle::before {
+    opacity: 1;
+  }
+
+  .back-arrow:hover .back-arrow-inner {
+    color: #1b5e20;
+    transform: scale(1.2);
+  }
+
+  .back-arrow:active .back-arrow-circle {
+    transform: translateX(-10px) scale(1.05);
+  }
+
+  /* Mobile Optimizations */
+  @media (max-width: 768px) {
+    body {
+      cursor: default;
+    }
+    
+    .cursor {
+      display: none;
+    }
+
+    .plants {
+      gap: clamp(40px, 10vw, 80px);
+    }
+
+    .arrow, .back-arrow {
+      bottom: 20px;
+      top: auto;
+    }
+
+    .arrow {
+      right: 20px;
+    }
+
+    .back-arrow {
+      left: 20px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .plants {
+      flex-direction: column;
+      gap: 60px;
+    }
+
+    .plant-label {
+      bottom: -35px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- Custom Cursor -->
+<div class="cursor" id="cursor"></div>
+
+<!-- 🌤 PAGE 1: EXPERIMENT -->
+<div id="page1" class="page visible">
+  <div class="sky" id="sky"></div>
+  <div class="overlay"></div>
+  <div class="sun" id="sun"></div>
+  
+  <!-- Translucent Sun Filter -->
+  <div class="sun-filter" id="sunFilter"></div>
+
+  <div style="display: flex; flex-direction: column; align-items: center; width: 100%;">
+    <div class="plants">
+      <!-- Normal Plant -->
+      <div class="plant-container">
+        <div class="pot">
+          <div class="plant" id="normalPlant">
+            <div class="stem"></div>
+            <div class="leaf left" style="top:30px;"></div>
+            <div class="leaf right" style="top:60px;"></div>
+            <div class="leaf left" style="top:90px;"></div>
+
+            <!-- Falling Leaves -->
+            <div class="falling-leaf" style="top: 60px; left: -40px;"></div>
+            <div class="falling-leaf" style="top: 80px; right: -40px;"></div>
+
+            <div class="flower" style="left:-8px;">
+              <div class="flower-petal" style="transform: rotate(0deg) translate(8px, 0);"></div>
+              <div class="flower-petal" style="transform: rotate(60deg) translate(8px, 0);"></div>
+              <div class="flower-petal" style="transform: rotate(120deg) translate(8px, 0);"></div>
+              <div class="flower-petal" style="transform: rotate(180deg) translate(8px, 0);"></div>
+              <div class="flower-petal" style="transform: rotate(240deg) translate(8px, 0);"></div>
+              <div class="flower-petal" style="transform: rotate(300deg) translate(8px, 0);"></div>
+              <div class="flower-center"></div>
+            </div>
+            <!-- Falling Petal -->
+            <div class="falling-petal" style="top: -40px; left: -15px;"></div>
+
+          </div>
+        </div>
+        <div class="plant-label">🌿 Normal Plant</div>
+      </div>
+
+      <!-- GM Plant -->
+      <div class="plant-container">
+        <div class="pot">
+          <div class="plant" id="gmPlant">
+            <div class="stem"></div>
+            <div class="leaf left" style="top:10px;"></div>
+            <div class="leaf right" style="top:35px;"></div>
+            <div class="leaf left" style="top:60px;"></div>
+            <div class="leaf right" style="top:85px;"></div>
+            <div class="flower" style="left:-12px;">
+              <div class="flower-petal" style="transform: rotate(0deg) translate(8px, 0);"></div>
+              <div class="flower-petal" style="transform: rotate(60deg) translate(8px, 0);"></div>
+              <div class="flower-petal" style="transform: rotate(120deg) translate(8px, 0);"></div>
+              <div class="flower-petal" style="transform: rotate(180deg) translate(8px, 0);"></div>
+              <div class="flower-petal" style="transform: rotate(240deg) translate(8px, 0);"></div>
+              <div class="flower-petal" style="transform: rotate(300deg) translate(8px, 0);"></div>
+              <div class="flower-center"></div>
+            </div>
+            <div class="flower" style="left:15px; top:-30px;">
+              <div class="flower-petal" style="transform: rotate(0deg) translate(8px, 0);"></div>
+              <div class="flower-petal" style="transform: rotate(60deg) translate(8px, 0);"></div>
+              <div class="flower-petal" style="transform: rotate(120deg) translate(8px, 0);"></div>
+              <div class="flower-petal" style="transform: rotate(180deg) translate(8px, 0);"></div>
+              <div class="flower-petal" style="transform: rotate(240deg) translate(8px, 0);"></div>
+              <div class="flower-petal" style="transform: rotate(300deg) translate(8px, 0);"></div>
+              <div class="flower-center"></div>
+            </div>
+          </div>
+        </div>
+        <div class="plant-label">🧬 GM Plant</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <input type="range" min="0" max="100" value="50" id="sunlightRange">
+    <div class="sun-value" id="sunValue">☀️ Sunlight: 50%</div>
+    <div class="desc" id="conditionDesc">
+      Moderate sunlight: Both plants remain stable and healthy.
+    </div>
+  </div>
+
+  <div class="arrow" onclick="goToPage2()">
+    <div class="arrow-circle">
+      <div class="arrow-inner">›</div>
+    </div>
+  </div>
+</div>
+
+<!-- 🌿 PAGE 2: WHY WE DID THIS -->
+<div id="page2" class="page hidden">
+  <div class="sky" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); z-index:-3;"></div>
+  <div class="overlay"></div>
+
+  <div class="desc-container">
+    <h1>🌱 Why We Did This Experiment</h1>
+    <p>
+      This experiment demonstrates how genetic modification can improve a plant's resilience to varying sunlight levels. By simulating different light conditions, we observe how the GM plant maintains its growth compared to the normal plant.
+    </p>
+
+    <h2>🌞 Purpose</h2>
+    <p>
+      To show how genetically modified plants can sustain growth and productivity under environmental stress, especially in areas with inconsistent sunlight exposure.
+    </p>
+
+    <h2>💡 Conclusion</h2>
+    <p>
+      The GM plant adapts effectively, staying lush even under low sunlight and slightly wilting only under extreme light. This highlights biotechnology's role in sustainable agriculture and future food security.
+    </p>
+  </div>
+
+  <div class="back-arrow" onclick="goToPage1()">
+    <div class="back-arrow-circle">
+      <div class="back-arrow-inner">‹</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const range = document.getElementById("sunlightRange");
+const sun = document.getElementById("sun");
+const sky = document.getElementById("sky");
+const gmPlant = document.getElementById("gmPlant");
+const normalPlant = document.getElementById("normalPlant");
+const desc = document.getElementById("conditionDesc");
+const sunValue = document.getElementById("sunValue");
+const sunFilter = document.getElementById("sunFilter");
+const cursor = document.getElementById("cursor");
+
+// Custom cursor movement
+document.addEventListener('mousemove', (e) => {
+  cursor.style.left = e.clientX + 'px';
+  cursor.style.top = e.clientY + 'px';
+});
+
+// Cursor hover effect
+const hoverElements = document.querySelectorAll('.arrow, .back-arrow, input[type=range], .plant, .plant-label');
+hoverElements.forEach(el => {
+  el.addEventListener('mouseenter', () => cursor.classList.add('hover'));
+  el.addEventListener('mouseleave', () => cursor.classList.remove('hover'));
+});
+
+// Create enhanced background elements
+function createBackgroundElements() {
+  const sky = document.getElementById('sky');
+
+  // Create gradient orbs
+  const orbColors = [
+    { bg: 'radial-gradient(circle, rgba(103, 126, 234, 0.4), transparent)', size: '400px' },
+    { bg: 'radial-gradient(circle, rgba(118, 75, 162, 0.3), transparent)', size: '350px' },
+    { bg: 'radial-gradient(circle, rgba(240, 147, 251, 0.35), transparent)', size: '450px' },
+    { bg: 'radial-gradient(circle, rgba(255, 200, 124, 0.25), transparent)', size: '300px' }
+  ];
+
+  orbColors.forEach((orb, i) => {
+    const orbEl = document.createElement('div');
+    orbEl.className = 'gradient-orb';
+    orbEl.style.background = orb.bg;
+    orbEl.style.width = orb.size;
+    orbEl.style.height = orb.size;
+    orbEl.style.left = (Math.random() * 80) + '%';
+    orbEl.style.top = (Math.random() * 80) + '%';
+    orbEl.style.animationDelay = (i * 2) + 's';
+    orbEl.style.animationDuration = (15 + Math.random() * 10) + 's';
+    sky.appendChild(orbEl);
+  });
+
+  // Create floating particles
+  for (let i = 0; i < 30; i++) {
+    const particle = document.createElement('div');
+    particle.className = 'particle';
+    particle.style.left = Math.random() * 100 + '%';
+    particle.style.top = Math.random() * 100 + '%';
+    particle.style.animationDelay = Math.random() * 8 + 's';
+    particle.style.animationDuration = (8 + Math.random() * 4) + 's';
+    sky.appendChild(particle);
+  }
+
+  // Create twinkling stars
+  for (let i = 0; i < 50; i++) {
+    const star = document.createElement('div');
+    star.className = 'star';
+    star.style.left = Math.random() * 100 + '%';
+    star.style.top = Math.random() * 100 + '%';
+    star.style.animationDelay = Math.random() * 3 + 's';
+    star.style.animationDuration = (2 + Math.random() * 2) + 's';
+    sky.appendChild(star);
+  }
+
+  // Create clouds
+  for (let i = 0; i < 8; i++) {
+    const cloud = document.createElement('div');
+    cloud.className = 'cloud';
+    cloud.style.width = (100 + Math.random() * 150) + 'px';
+    cloud.style.height = (60 + Math.random() * 40) + 'px';
+    cloud.style.left = '-150px';
+    cloud.style.top = (10 + Math.random() * 40) + '%';
+    cloud.style.animationDelay = (i * 8) + 's';
+    cloud.style.animationDuration = (60 + Math.random() * 30) + 's';
+    cloud.style.opacity = 0.2 + Math.random() * 0.3;
+    sky.appendChild(cloud);
+  }
+}
+
+createBackgroundElements();
+
+// Create dynamic sun rays
+function createSunRays() {
+  sunFilter.innerHTML = '';
+  const rayCount = 16;
+
+  for (let i = 0; i < rayCount; i++) {
+    const ray = document.createElement('div');
+    ray.className = 'sun-ray';
+    ray.style.left = '50%';
+    ray.style.top = '0';
+    ray.style.transform = `rotate(${(360 / rayCount) * i}deg)`;
+    ray.style.animationDelay = `${i * 0.1}s`;
+    sunFilter.appendChild(ray);
+  }
+}
+
+// Initialize sun rays
+createSunRays();
+
+// Update sun ray positions based on sun location
+function updateSunRays(sunLeft, sunTop) {
+  const rays = sunFilter.querySelectorAll('.sun-ray');
+  rays.forEach(ray => {
+    ray.style.left = sunLeft;
+    ray.style.top = sunTop;
+  });
+}
+
+// Helper function to reset plant styles
+function resetPlantStyles(plant) {
+  plant.style.transform = "scale(1)";
+  plant.querySelectorAll('.leaf').forEach(l => {
+    l.style.background = "linear-gradient(135deg, #4caf50, #66bb6a, #43a047)";
+    l.style.transform = l.classList.contains('left') ? 'rotate(-25deg)' : 'rotate(25deg)';
+    l.style.animation = 'none';
+    l.style.opacity = 1;
+    l.style.filter = 'brightness(1)';
+  });
+  plant.querySelectorAll('.flower').forEach(f => {
+    f.style.opacity = 1;
+    f.style.transform = 'scale(1)';
+    f.style.filter = 'brightness(1)';
+  });
+  const stemHeight = window.innerWidth <= 768 ? '100px' : '140px';
+  plant.querySelector('.stem').style.height = stemHeight;
+  plant.querySelectorAll('.falling-leaf, .falling-petal').forEach(el => {
+      el.style.animation = 'none';
+      el.style.opacity = 0;
+  });
+}
+
+range.addEventListener("input", () => {
+  const val = parseInt(range.value);
+  sunValue.textContent = `☀️ Sunlight: ${val}%`;
+
+  // Change sun size based on sunlight percentage
+  const baseSunSize = window.innerWidth <= 768 ? 60 : 80;
+  const sunSize = baseSunSize + (val * 1.2);
+  sun.style.width = sunSize + 'px';
+  sun.style.height = sunSize + 'px';
+
+  // Move Sun with smooth easing
+  const sunLeft = `${5 + (val * 0.9)}%`;
+  const sunTop = `${15 + ((100 - val) * 0.5)}%`;
+
+  sun.style.left = sunLeft;
+  sun.style.top = sunTop;
+
+  // Update sun rays position
+  updateSunRays(sunLeft, sunTop);
+
+  // Adjust sun glow intensity based on size
+  const glowIntensity = 50 + (val * 0.8);
+  sun.style.boxShadow = `
+    0 0 ${glowIntensity}px ${glowIntensity / 3}px rgba(255, 240, 122, ${0.3 + val / 200}),
+    0 0 ${glowIntensity * 2}px ${glowIntensity * 0.6}px rgba(255, 200, 100, ${0.15 + val / 400}),
+    inset -10px -10px 30px rgba(255, 180, 0, 0.3)
+  `;
+
+  // Adjust sun filter opacity
+  sunFilter.style.opacity = val / 100;
+
+  // Smooth Sky Transition with enhanced gradients
+  if (val < 33) {
+    sky.style.background = "linear-gradient(135deg, #1a2a6c 0%, #2b3a67 30%, #5a3a7c 60%, #fca311 100%)";
+    desc.textContent = "🌙 Low sunlight: GM plant thrives with deeper green, fuller leaves and vibrant blooms. Normal plant stays consistent.";
+
+    // GM Plant flourishes
+    gmPlant.style.transform = "scale(1.35)";
+    gmPlant.style.transformOrigin = "bottom center";
+    gmPlant.querySelectorAll('.leaf').forEach(l => {
+      l.style.background = "linear-gradient(135deg, #2e7d32, #388e3c, #43a047)";
+      l.style.transform = l.classList.contains('left') ?
+        'rotate(-30deg) scale(1.1)' : 'rotate(30deg) scale(1.1)';
+    });
+    gmPlant.querySelectorAll('.flower').forEach(f => {
+      f.style.opacity = 1;
+      f.style.transform = 'scale(1.15)';
+    });
+    const stemHeightLow = window.innerWidth <= 768 ? '115px' : '155px';
+    gmPlant.querySelector('.stem').style.height = stemHeightLow;
+
+    // Normal plant remains relatively unchanged
+    resetPlantStyles(normalPlant);
+    normalPlant.style.transform = "scale(0.85)";
+    normalPlant.style.transformOrigin = "bottom center";
+    normalPlant.querySelectorAll('.leaf').forEach(l => {
+      l.style.background = "linear-gradient(135deg, #4caf50, #66bb6a, #43a047)";
+      l.style.transform = l.classList.contains('left') ? 'rotate(-25deg)' : 'rotate(25deg)';
+    });
+    normalPlant.querySelectorAll('.flower').forEach(f => {
+      f.style.opacity = 1;
+      f.style.transform = 'scale(1)';
+    });
+
+  } else if (val < 66) {
+    sky.style.background = "linear-gradient(135deg, #667eea 0%, #87ceeb 30%, #b4e0f4 50%, #f7e9a0 100%)";
+    desc.textContent = "☀️ Moderate sunlight: Both plants remain stable and healthy. GM plant is slightly bigger";
+
+    // Both plants normal, GM plant slightly bigger
+    resetPlantStyles(normalPlant);
+    resetPlantStyles(gmPlant);
+    gmPlant.style.transform = "scale(1.1)";
+
+  } else {
+    sky.style.background = "linear-gradient(135deg, #ff9966 0%, #ffb84d 50%, #ffc371 70%, #ffcc70 100%)";
+    desc.textContent = "🔥 High sunlight: GM plant grows moderately, while the normal plant shrinks and wilts with falling leaves/petals.";
+
+    // GM Plant grows moderately (not as much as in low sunlight)
+    resetPlantStyles(gmPlant);
+    gmPlant.style.transform = "scale(1.15)";
+    gmPlant.querySelectorAll('.leaf').forEach(l => {
+      l.style.background = "linear-gradient(135deg, #43a047, #4caf50, #66bb6a)";
+    });
+    const stemHeightHigh = window.innerWidth <= 768 ? '110px' : '145px';
+    gmPlant.querySelector('.stem').style.height = stemHeightHigh;
+
+    // Normal plant shrinks and wilts
+    resetPlantStyles(normalPlant);
+    normalPlant.style.transform = "scale(0.8)";
+
+    // Apply wilting and falling animation to some leaves
+    const leaves = normalPlant.querySelectorAll('.leaf');
+    leaves[0].style.animation = 'wilt 1s forwards';
+    leaves[1].style.animation = 'wilt 1.2s forwards';
+
+    // Apply wilting and brightness decrease to flower
+    const flowers = normalPlant.querySelectorAll('.flower');
+    flowers.forEach(flower => {
+        flower.style.filter = 'brightness(0.7)';
+    });
+
+    // Animate falling leaves
+    const fallingLeaves = normalPlant.querySelectorAll('.falling-leaf');
+    fallingLeaves[0].style.animation = 'fall 2.5s linear forwards 0.3s';
+    fallingLeaves[0].style.opacity = 1;
+    fallingLeaves[1].style.animation = 'fall 3s linear forwards 0.5s';
+    fallingLeaves[1].style.opacity = 1;
+
+    // Animate falling petal
+    const fallingPetal = normalPlant.querySelector('.falling-petal');
+    fallingPetal.style.animation = 'fall 3.5s linear forwards 0.7s';
+    fallingPetal.style.opacity = 1;
+  }
+});
+
+// Trigger initial state
+range.dispatchEvent(new Event('input'));
+
+function goToPage2() {
+  document.getElementById("page1").classList.replace("visible", "hidden");
+  document.getElementById("page2").classList.replace("hidden", "visible");
+}
+
+function goToPage1() {
+  document.getElementById("page2").classList.replace("visible", "hidden");
+  document.getElementById("page1").classList.replace("hidden", "visible");
+}
+
+// Add keyboard navigation
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' && document.getElementById("page1").classList.contains('visible')) {
+    goToPage2();
+  } else if (e.key === 'ArrowLeft' && document.getElementById("page2").classList.contains('visible')) {
+    goToPage1();
+  }
+});
+
+// Handle window resize
+window.addEventListener('resize', () => {
+  range.dispatchEvent(new Event('input'));
+});
+</script>
+</body>
+</html>
